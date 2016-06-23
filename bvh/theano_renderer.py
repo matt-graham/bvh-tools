@@ -33,10 +33,10 @@ def rot_z(ang):
     ]).reshape((3, 3))
 
 
-def rot_x_batch(ang, n_batch):
+def rot_x_batch(ang):
     s = tt.sin(ang)
     c = tt.cos(ang)
-    rot = tt.stack([tt.eye(3)] * n_batch, 0)
+    rot = tt.repeat(tt.eye(3)[None, :, :], ang.shape[0], 0)
     rot = tt.set_subtensor(rot[:, 1, 1], c)
     rot = tt.set_subtensor(rot[:, 1, 2], -s)
     rot = tt.set_subtensor(rot[:, 2, 1], s)
@@ -44,10 +44,10 @@ def rot_x_batch(ang, n_batch):
     return rot
 
 
-def rot_y_batch(ang, n_batch):
+def rot_y_batch(ang):
     s = tt.sin(ang)
     c = tt.cos(ang)
-    rot = tt.stack([tt.eye(3)] * n_batch, 0)
+    rot = tt.repeat(tt.eye(3)[None, :, :], ang.shape[0], 0)
     rot = tt.set_subtensor(rot[:, 0, 0], c)
     rot = tt.set_subtensor(rot[:, 0, 2], s)
     rot = tt.set_subtensor(rot[:, 2, 0], -s)
@@ -55,10 +55,10 @@ def rot_y_batch(ang, n_batch):
     return rot
 
 
-def rot_z_batch(ang, n_batch):
+def rot_z_batch(ang):
     s = tt.sin(ang)
     c = tt.cos(ang)
-    rot = tt.stack([tt.eye(3)] * n_batch, 0)
+    rot = tt.repeat(tt.eye(3)[None, :, :], ang.shape[0], 0)
     rot = tt.set_subtensor(rot[:, 0, 0], c)
     rot = tt.set_subtensor(rot[:, 0, 1], -s)
     rot = tt.set_subtensor(rot[:, 1, 0], s)
@@ -137,26 +137,34 @@ def joint_positions(node, angles, fixed_angles=None, lengths=None,
 
 
 def joint_positions_batch(
-        node, angles, n_batch, fixed_angles=None, lengths=None,
+        node, angles, fixed_angles=None, lengths=None,
         lengths_map=None, skip=[], i=None, parent_trans=None):
+    # check whether single vector of angles or mini-batch matrix provided
+    if angles.ndim == 2:
+        n_batch = angles.shape[0]
+    elif angles.ndim == 1:
+        n_batch = 1
+        angles = angles[None, :]
+        if lengths is not None:
+            lengths = lengths[None, :]
+    else:
+        raise Exception('angles should be one or two dimensional.')
     if i is None:
         i = [0]
     if parent_trans is None:
-        parent_trans = tt.stack([tt.eye(4)] * n_batch, 0)
+        parent_trans = tt.repeat(tt.eye(4)[None, :, :], n_batch, 0)
     joints = []
-    rot = tt.stack([tt.eye(3)] * n_batch, 0)
+    rot = tt.repeat(tt.eye(3)[None, :, :], n_batch, 0)
     for ch in node.channels:
         ch_key = (node.name.lower(), ch[0].lower())
         if ch in rotation_map:
             if fixed_angles is not None and ch_key in fixed_angles:
-                rot = tt.batched_dot(
-                    rot, rotation_map_batch[ch](
-                        np.array([fixed_angles[ch_key]] * n_batch), n_batch))
+                rot = rot.dot(rotation_map[ch](fixed_angles[ch_key]))
             else:
                 rot = tt.batched_dot(
-                    rot, rotation_map_batch[ch](angles[i[0]], n_batch))
+                    rot, rotation_map_batch[ch](angles[:, i[0]]))
                 i[0] += 1
-    local_trans = tt.stack([tt.eye(4)] * n_batch, 0)
+    local_trans = tt.repeat(tt.eye(4)[None, :, :], n_batch, 0)
     local_trans = tt.set_subtensor(local_trans[:, :3, :3], rot)
     if not (node.name.lower() in skip and node.is_end_site):
         if lengths is None or node.length == 0.:
@@ -168,10 +176,10 @@ def joint_positions_batch(
         local_trans = tt.set_subtensor(local_trans[:, :3, 3], node_offset)
         node_trans = tt.batched_dot(parent_trans, local_trans)
         if not node.name.lower() in skip:
-            joints.append(node_trans[:, :, 3])
+            joints.append(tt.squeeze(node_trans[:, :, 3]))
         for child in node.children:
             joints += joint_positions_batch(
-                child, angles, n_batch, fixed_angles, lengths,
+                child, angles, fixed_angles, lengths,
                 lengths_map, skip, i, node_trans)
     return joints
 
@@ -192,16 +200,23 @@ def camera_matrix(focal_length, position, yaw_pitch_roll):
     return cam_mtx
 
 
-def camera_matrix_batch(focal_length, position, yaw_pitch_roll, n_batch):
-    cam_mtx = tt.constant(np.zeros((n_batch, 3, 4)))
-    rot_mtx = rot_x_batch(yaw_pitch_roll[:, 0], n_batch)
+def camera_matrix_batch(focal_length, position, yaw_pitch_roll):
+    if focal_length.ndim == 1:
+        n_batch = focal_length.shape[0]
+    else:
+        n_batch = 1
+        focal_length = focal_length.reshape((1,))
+        position = position[None, :]
+        yaw_pitch_roll = yaw_pitch_roll[None, :]
+    cam_mtx = tt.zeros((n_batch, 3, 4))
+    rot_mtx = rot_x_batch(yaw_pitch_roll[:, 0])
     rot_mtx = tt.batched_dot(
-        rot_mtx, rot_y_batch(yaw_pitch_roll[:, 1], n_batch))
+        rot_mtx, rot_y_batch(yaw_pitch_roll[:, 1]))
     rot_mtx = tt.batched_dot(
-        rot_mtx, rot_z_batch(yaw_pitch_roll[:, 2], n_batch))
+        rot_mtx, rot_z_batch(yaw_pitch_roll[:, 2]))
     cam_mtx = tt.set_subtensor(cam_mtx[:, :, :3], rot_mtx)
     cam_mtx = tt.set_subtensor(cam_mtx[:, :, 3], position)
     int_mtx = tt.stack([focal_length, focal_length,
                         tt.ones_like(focal_length)])
     cam_mtx = (int_mtx * cam_mtx.T).T
-    return cam_mtx
+    return tt.squeeze(cam_mtx)
