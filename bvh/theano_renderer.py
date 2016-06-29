@@ -145,7 +145,7 @@ def joint_positions_batch(
     elif angles.ndim == 1:
         n_batch = 1
         angles = angles[None, :]
-        if lengths is not None:
+        if lengths is not None and lengths.ndim == 1:
             lengths = lengths[None, :]
     else:
         raise Exception('angles should be one or two dimensional.')
@@ -168,7 +168,7 @@ def joint_positions_batch(
     local_trans = tt.set_subtensor(local_trans[:, :3, :3], rot)
     if not (node.name.lower() in skip and node.is_end_site):
         if lengths is None or node.length == 0.:
-            node_offset = np.array(node.offset).astype(th.config.floatX)
+            node_offset = np.array(node.offset, dtype=th.config.floatX)[None, :]
         else:
             length = lengths[:, lengths_map[node.name.lower()]]
             node_offset = (node.offset_unit[None, :]
@@ -176,7 +176,7 @@ def joint_positions_batch(
         local_trans = tt.set_subtensor(local_trans[:, :3, 3], node_offset)
         node_trans = tt.batched_dot(parent_trans, local_trans)
         if not node.name.lower() in skip:
-            joints.append(tt.squeeze(node_trans[:, :, 3]))
+            joints.append(node_trans[:, :, 3])
         for child in node.children:
             joints += joint_positions_batch(
                 child, angles, fixed_angles, lengths,
@@ -186,9 +186,9 @@ def joint_positions_batch(
 
 def camera_matrix(focal_length, position, yaw_pitch_roll):
     cam_mtx = tt.constant(np.zeros((3, 4)))
-    rot_mtx = rot_x(yaw_pitch_roll[0])
-    rot_mtx = rot_mtx.dot(rot_y(yaw_pitch_roll[1]))
-    rot_mtx = rot_mtx.dot(rot_z(yaw_pitch_roll[2]))
+    rot_mtx = rot_z(yaw_pitch_roll[2])
+    rot_mtx = rot_mtx.dot(rot_x(yaw_pitch_roll[1]))
+    rot_mtx = rot_mtx.dot(rot_y(yaw_pitch_roll[0]))
     cam_mtx = tt.set_subtensor(cam_mtx[:, :3], rot_mtx)
     cam_mtx = tt.set_subtensor(cam_mtx[:, 3], position)
     int_mtx = tt.stack([
@@ -209,14 +209,14 @@ def camera_matrix_batch(focal_length, position, yaw_pitch_roll):
         position = position[None, :]
         yaw_pitch_roll = yaw_pitch_roll[None, :]
     cam_mtx = tt.zeros((n_batch, 3, 4))
-    rot_mtx = rot_x_batch(yaw_pitch_roll[:, 0])
+    rot_mtx = rot_z_batch(yaw_pitch_roll[:, 2])
     rot_mtx = tt.batched_dot(
-        rot_mtx, rot_y_batch(yaw_pitch_roll[:, 1]))
+        rot_mtx, rot_x_batch(yaw_pitch_roll[:, 1]))
     rot_mtx = tt.batched_dot(
-        rot_mtx, rot_z_batch(yaw_pitch_roll[:, 2]))
+        rot_mtx, rot_y_batch(yaw_pitch_roll[:, 0]))
     cam_mtx = tt.set_subtensor(cam_mtx[:, :, :3], rot_mtx)
     cam_mtx = tt.set_subtensor(cam_mtx[:, :, 3], position)
     int_mtx = tt.stack([focal_length, focal_length,
                         tt.ones_like(focal_length)])
     cam_mtx = (int_mtx * cam_mtx.T).T
-    return tt.squeeze(cam_mtx)
+    return cam_mtx
