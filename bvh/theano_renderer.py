@@ -111,7 +111,7 @@ def joint_positions(node, angles, fixed_angles=None, lengths=None,
     joints = []
     rot = tt.eye(3)
     for ch in node.channels:
-        ch_key = (node.name.lower(), ch[0].lower())
+        ch_key = node.name.lower() + '_' + ch[0].lower()
         if ch in rotation_map:
             if fixed_angles is not None and ch_key in fixed_angles:
                 rot = rot.dot(rotation_map[ch](fixed_angles[ch_key]))
@@ -156,7 +156,7 @@ def joint_positions_batch(
     joints = []
     rot = tt.repeat(tt.eye(3)[None, :, :], n_batch, 0)
     for ch in node.channels:
-        ch_key = (node.name.lower(), ch[0].lower())
+        ch_key = node.name.lower() + '_' + ch[0].lower()
         if ch in rotation_map:
             if fixed_angles is not None and ch_key in fixed_angles:
                 rot = rot.dot(rotation_map[ch](fixed_angles[ch_key]))
