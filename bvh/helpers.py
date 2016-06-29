@@ -96,7 +96,7 @@ def get_all_channels(joint_order):
         index_and_channels = joint_order[name]
         i = index_and_channels[0] * 3
         for channel in index_and_channels[1]:
-            all_channels[i] = (name, channel)
+            all_channels[i] = name + '_' + channel
             i += 1
     return all_channels
 
