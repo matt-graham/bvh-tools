@@ -1,6 +1,6 @@
 import numpy as np
 import os
-from numpy_reader import NumpyBvhReader
+from .numpy_reader import NumpyBvhReader
 
 
 standard_joint_order = {
@@ -145,11 +145,34 @@ def load_all(base_dir, joint_order=standard_joint_order):
     return np.vstack(angles_list), np.array(offsets_list)
 
 
+def populate_lengths(node, lengths, lengths_map):
+    if node.name.lower() in lengths_map:
+        lengths[lengths_map[node.name.lower()]] = (
+            np.array(node.offset)**2).sum()**0.5
+    for child in node.children:
+        populate_lengths(child, lengths, lengths_map)
+
+
+def load_all_lengths(base_dir, lengths_map):
+    lengths_list = []
+    for dir_name, subdir_list, file_list in os.walk(base_dir):
+        if file_list:
+            file_name = file_list[0]
+            file_ext = os.path.splitext(file_name)[1]
+            if file_ext.lower() == '.bvh':
+                file_path = os.path.join(dir_name, file_name)
+                reader = NumpyBvhReader(file_path)
+                process_skeleton(reader.root)
+                lengths = np.zeros(len(np.unique(lengths_map.values())))
+                populate_lengths(reader.root, lengths, lengths_map)
+                lengths_list.append(lengths)
+    return lengths_list
+
+
 def process_skeleton(node):
     offset = np.array(node.offset)
     node.length = offset.dot(offset) ** 0.5
     node.offset_unit = offset / node.length if node.length != 0. else offset
-    print('{0}: {1}'.format(node.name, node.length))
     for child in node.children:
         if child.is_end_site and child.name == 'End Site':
             child.name = node.name + 'EndSite'

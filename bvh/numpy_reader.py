@@ -1,8 +1,8 @@
 import numpy as np
-import bvh
+from . import reader
 
 
-class NumpyBvhReader(bvh.BvhReader):
+class NumpyBvhReader(reader.BvhReader):
 
     def __init__(self, filename):
         super(NumpyBvhReader, self).__init__(filename)
