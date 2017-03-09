@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+"""Helper functions for reading and rendering BVH files."""
+
 import numpy as np
 import os
 from .numpy_reader import NumpyBvhReader

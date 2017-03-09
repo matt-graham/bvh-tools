@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+"""NumPy based renderer functions for Biovision Hierarchy (bvh) skeletons."""
+
 import numpy as np
 from math import sin, cos
 

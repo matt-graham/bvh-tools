@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+"""NumPy based reader of Biovision Hierarchy (bvh) motion-capture files."""
+
 import numpy as np
 from . import reader
 
@@ -16,7 +19,6 @@ class NumpyBvhReader(reader.BvhReader):
             self._pos_idx = slice(ch_x, ch_z + 1)
         else:
             self._pos_idx = [ch_x, ch_y, ch_z]
-        #self._ang_idx = self.sorted_angle_channels(self.root)
         self._ang_idx = [i for i in range(self.num_channels)
                          if i not in [ch_x, ch_y, ch_z]]
 

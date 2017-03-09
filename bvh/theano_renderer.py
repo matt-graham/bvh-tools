@@ -1,9 +1,13 @@
+# -*- coding: utf-8 -*-
+"""Theano based renderer functions for Biovision Hierarchy (bvh) skeletons."""
+
 import numpy as np
 import theano as th
 import theano.tensor as tt
 
 
 def rot_x(ang):
+    """Returns matrix which defines rotation by `ang` about x-axis (0-axis)."""
     s = tt.sin(ang)
     c = tt.cos(ang)
     return tt.stack([
@@ -14,6 +18,7 @@ def rot_x(ang):
 
 
 def rot_y(ang):
+    """Returns matrix which defines rotation by `ang` about y-axis (1-axis)."""
     s = tt.sin(ang)
     c = tt.cos(ang)
     return tt.stack([
@@ -24,6 +29,7 @@ def rot_y(ang):
 
 
 def rot_z(ang):
+    """Returns matrix which defines rotation by `ang` about z-axis (2-axis)."""
     s = tt.sin(ang)
     c = tt.cos(ang)
     return tt.stack([
@@ -34,6 +40,7 @@ def rot_z(ang):
 
 
 def rot_x_batch(ang):
+    """Returns batch of matrices which defines rotations about x-axis (0)."""
     s = tt.sin(ang)
     c = tt.cos(ang)
     rot = tt.repeat(tt.eye(3)[None, :, :], ang.shape[0], 0)
@@ -45,6 +52,7 @@ def rot_x_batch(ang):
 
 
 def rot_y_batch(ang):
+    """Returns batch of matrices which defines rotations about y-axis (1)."""
     s = tt.sin(ang)
     c = tt.cos(ang)
     rot = tt.repeat(tt.eye(3)[None, :, :], ang.shape[0], 0)
@@ -56,6 +64,7 @@ def rot_y_batch(ang):
 
 
 def rot_z_batch(ang):
+    """Returns batch of matrices which defines rotations about z-axis (2)."""
     s = tt.sin(ang)
     c = tt.cos(ang)
     rot = tt.repeat(tt.eye(3)[None, :, :], ang.shape[0], 0)
@@ -80,6 +89,7 @@ rotation_map_batch = {
 
 
 def get_bones(node, angles_rad, i=[0], parent_trans=None):
+    """Get list of bones given skeletong tree and joint angles."""
     if parent_trans is None:
         parent_trans = tt.constant(np.eye(4))
     bones = []
@@ -104,6 +114,7 @@ def get_bones(node, angles_rad, i=[0], parent_trans=None):
 
 def joint_positions(node, angles, fixed_angles=None, lengths=None,
                     lengths_map=None, skip=[], i=None, parent_trans=None):
+    """Get list of joint pos. given skeleton tree and joint angles."""
     if i is None:
         i = [0]
     if parent_trans is None:
@@ -139,6 +150,7 @@ def joint_positions(node, angles, fixed_angles=None, lengths=None,
 def joint_positions_batch(
         node, angles, fixed_angles=None, lengths=None,
         lengths_map=None, skip=[], i=None, parent_trans=None):
+    """Get list of joint pos. given skeleton tree and joint angles (batch)."""
     # check whether single vector of angles or mini-batch matrix provided
     if angles.ndim == 2:
         n_batch = angles.shape[0]
@@ -168,11 +180,12 @@ def joint_positions_batch(
     local_trans = tt.set_subtensor(local_trans[:, :3, :3], rot)
     if not (node.name.lower() in skip and node.is_end_site):
         if lengths is None or node.length == 0.:
-            node_offset = np.array(node.offset, dtype=th.config.floatX)[None, :]
+            node_offset = np.array(node.offset,
+                                   dtype=th.config.floatX)[None, :]
         else:
             length = lengths[:, lengths_map[node.name.lower()]]
-            node_offset = (node.offset_unit[None, :]
-                           * length[:, None]).astype(th.config.floatX)
+            node_offset = (node.offset_unit[None, :] *
+                           length[:, None]).astype(th.config.floatX)
         local_trans = tt.set_subtensor(local_trans[:, :3, 3], node_offset)
         node_trans = tt.batched_dot(parent_trans, local_trans)
         if not node.name.lower() in skip:
@@ -185,6 +198,7 @@ def joint_positions_batch(
 
 
 def camera_matrix(focal_length, position, yaw_pitch_roll):
+    """Get projective camera matrix given pose and focal length."""
     cam_mtx = tt.constant(np.zeros((3, 4)))
     rot_mtx = rot_z(yaw_pitch_roll[2])
     rot_mtx = rot_mtx.dot(rot_x(yaw_pitch_roll[1]))
@@ -201,6 +215,7 @@ def camera_matrix(focal_length, position, yaw_pitch_roll):
 
 
 def camera_matrix_batch(focal_length, position, yaw_pitch_roll):
+    """Get projective camera matrix given pose and focal length (batch)."""
     if focal_length.ndim == 1:
         n_batch = focal_length.shape[0]
     else:
