@@ -216,8 +216,8 @@ def camera_matrix(focal_length, position, yaw_pitch_roll):
 
 def camera_matrix_batch(focal_length, position, yaw_pitch_roll):
     """Get projective camera matrix given pose and focal length (batch)."""
-    if focal_length.ndim == 1:
-        n_batch = focal_length.shape[0]
+    if position.ndim == 2:
+        n_batch = position.shape[0]
     else:
         n_batch = 1
         focal_length = focal_length.reshape((1,))
