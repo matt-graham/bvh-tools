@@ -91,7 +91,7 @@ class BvhReader(object):
 
     def read(self):
         """Read the entire file."""
-        with file(self.filename, 'r') as self._file_handle:
+        with open(self.filename, 'r') as self._file_handle:
             self.read_hierarchy()
             self.on_hierarchy(self.root)
             self.read_motion()
